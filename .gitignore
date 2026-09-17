@@ -1,0 +1,12 @@
+.venv/
+.idea/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+data/raw/
+data/processed/
+output/
+
+.DS_Store
+Thumbs.db
