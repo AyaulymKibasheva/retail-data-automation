@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from .loader import load_file
-from .validator import REQUIRED_COLUMNS, validate_dataframe
+from .validator import validate_dataframe
 
 
 COLUMN_MAPPING = {
@@ -117,11 +117,9 @@ def add_source_row_number(
             + 2
         )
     else:
-        result["_source_row"] = (
-            pd.RangeIndex(
-                start=2,
-                stop=len(result) + 2,
-            )
+        result["_source_row"] = pd.RangeIndex(
+            start=2,
+            stop=len(result) + 2,
         )
 
     return result
@@ -414,21 +412,57 @@ def save_cleaning_result(
     directory = Path(output_directory)
     directory.mkdir(parents=True, exist_ok=True)
 
-    outputs = {
-        "sample_clean_sales.csv": result.clean_sales,
-        "sample_cancellations.csv": result.cancellations,
-        "sample_adjustments.csv": result.adjustments,
-        "sample_rejected_rows.csv": result.rejected_rows,
-        "sample_duplicates.csv": result.duplicates,
-        "sample_cleaning_summary.csv": result.summary(),
-    }
+    output_path = (
+        directory
+        / "sample_cleaning_result.xlsx"
+    )
 
-    for file_name, dataframe in outputs.items():
-        dataframe.to_csv(
-            directory / file_name,
-            index=False,
-            encoding="utf-8-sig",
-        )
+    try:
+        with pd.ExcelWriter(
+            output_path,
+            engine="openpyxl",
+        ) as writer:
+            result.summary().to_excel(
+                writer,
+                sheet_name="Summary",
+                index=False,
+            )
+
+            result.clean_sales.to_excel(
+                writer,
+                sheet_name="Clean Sales",
+                index=False,
+            )
+
+            result.cancellations.to_excel(
+                writer,
+                sheet_name="Cancellations",
+                index=False,
+            )
+
+            result.adjustments.to_excel(
+                writer,
+                sheet_name="Adjustments",
+                index=False,
+            )
+
+            result.rejected_rows.to_excel(
+                writer,
+                sheet_name="Rejected Rows",
+                index=False,
+            )
+
+            result.duplicates.to_excel(
+                writer,
+                sheet_name="Duplicates",
+                index=False,
+            )
+
+    except PermissionError as error:
+        raise DataCleaningError(
+            f"Cannot save '{output_path.name}'. "
+            "Close the file in Excel and run the program again."
+        ) from error
 
 
 def main() -> None:
@@ -467,8 +501,14 @@ def main() -> None:
     )
 
     print("\nROW RECONCILIATION")
-    print(f"Input rows: {result.input_row_count:,}")
-    print(f"Classified rows: {reconciled_count:,}")
+    print(
+        f"Input rows: "
+        f"{result.input_row_count:,}"
+    )
+    print(
+        f"Classified rows: "
+        f"{reconciled_count:,}"
+    )
     print(
         "Balanced: "
         f"{reconciled_count == result.input_row_count}"
@@ -493,7 +533,12 @@ def main() -> None:
         output_directory,
     )
 
-    print(f"\nFiles saved to: {output_directory}")
+    output_file = (
+        output_directory
+        / "sample_cleaning_result.xlsx"
+    )
+
+    print(f"\nWorkbook saved to: {output_file}")
     print("Cleaning completed successfully.")
 
 
