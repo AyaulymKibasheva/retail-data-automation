@@ -70,3 +70,18 @@ def test_zero_quantity_is_rejected(retail_dataframe):
 
     assert result.clean_sales.empty
     assert result.rejected_rows.iloc[0]["rejection_reason"] == "zero_quantity"
+
+
+def test_numeric_identifier_suffixes_do_not_hide_duplicates(retail_dataframe):
+    dataframe = retail_dataframe.iloc[[0, -1]].copy()
+    dataframe.loc[dataframe.index[0], "InvoiceNo"] = "10001"
+    dataframe.loc[dataframe.index[1], "InvoiceNo"] = "10001.0"
+    dataframe.loc[dataframe.index[0], "StockCode"] = "12345"
+    dataframe.loc[dataframe.index[1], "StockCode"] = "12345.0"
+
+    result = clean_dataframe(dataframe)
+
+    assert len(result.clean_sales) == 1
+    assert len(result.duplicates) == 1
+    assert result.clean_sales.iloc[0]["invoice_no"] == "10001"
+    assert result.clean_sales.iloc[0]["stock_code"] == "12345"

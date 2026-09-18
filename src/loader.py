@@ -75,6 +75,7 @@ def load_excel(
     sheet_names: Sequence[str] | None = None,
 ) -> pd.DataFrame:
     path = validate_file_path(file_path)
+    excel_file: pd.ExcelFile | None = None
 
     try:
         excel_file = pd.ExcelFile(
@@ -107,12 +108,38 @@ def load_excel(
             )
 
         dataframes: list[pd.DataFrame] = []
+        expected_columns: set[str] | None = None
+        expected_sheet: str | None = None
 
         for sheet_name in selected_sheets:
             dataframe = pd.read_excel(
                 excel_file,
                 sheet_name=sheet_name,
             )
+
+            current_columns = {
+                str(column)
+                for column in dataframe.columns
+            }
+
+            if expected_columns is None:
+                expected_columns = current_columns
+                expected_sheet = sheet_name
+            elif current_columns != expected_columns:
+                missing = sorted(expected_columns - current_columns)
+                additional = sorted(current_columns - expected_columns)
+                details: list[str] = []
+
+                if missing:
+                    details.append("missing: " + ", ".join(missing))
+                if additional:
+                    details.append("additional: " + ", ".join(additional))
+
+                raise DataLoadError(
+                    f"Schema mismatch in sheet '{sheet_name}' "
+                    f"compared with '{expected_sheet}' in "
+                    f"'{path.name}': " + "; ".join(details)
+                )
 
             dataframe["_source_file"] = path.name
             dataframe["_source_sheet"] = sheet_name
@@ -132,6 +159,10 @@ def load_excel(
         raise DataLoadError(
             f"Failed to load Excel file '{path.name}': {error}"
         ) from error
+
+    finally:
+        if excel_file is not None:
+            excel_file.close()
 
 
 def load_file(

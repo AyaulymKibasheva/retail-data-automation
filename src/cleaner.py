@@ -83,6 +83,20 @@ def normalize_text(
     return result
 
 
+def normalize_identifier(
+    series: pd.Series,
+    uppercase: bool = True,
+) -> pd.Series:
+    return normalize_text(
+        series,
+        uppercase=uppercase,
+    ).str.replace(
+        r"^(-?\d+)\.0$",
+        r"\1",
+        regex=True,
+    )
+
+
 def add_reason(
     reasons: pd.Series,
     mask: pd.Series,
@@ -132,14 +146,12 @@ def standardize_dataframe(
     result = add_source_row_number(result)
     result = result.rename(columns=COLUMN_MAPPING)
 
-    result["invoice_no"] = normalize_text(
-        result["invoice_no"],
-        uppercase=True,
+    result["invoice_no"] = normalize_identifier(
+        result["invoice_no"]
     )
 
-    result["stock_code"] = normalize_text(
-        result["stock_code"],
-        uppercase=True,
+    result["stock_code"] = normalize_identifier(
+        result["stock_code"]
     )
 
     result["description"] = normalize_text(
@@ -150,9 +162,9 @@ def standardize_dataframe(
         result["country"]
     )
 
-    result["customer_id"] = (
-        normalize_text(result["customer_id"])
-        .str.replace(r"\.0$", "", regex=True)
+    result["customer_id"] = normalize_identifier(
+        result["customer_id"],
+        uppercase=False,
     )
 
     result["quantity"] = pd.to_numeric(

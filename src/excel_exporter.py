@@ -130,7 +130,10 @@ def run_report_pipeline(input_file: str | Path) -> ReportData:
             {"property": "Status", "value": "SUCCESS"},
             {"property": "Started at", "value": run_started_at},
             {"property": "Finished at", "value": run_finished_at},
-            {"property": "Duration seconds", "value": round(total_duration, 4)},
+            {
+                "property": "Pipeline duration seconds",
+                "value": round(total_duration, 4),
+            },
             {"property": "Input path", "value": file_path.name},
             {"property": "Input files", "value": len(input_batch.files)},
             {

@@ -40,6 +40,29 @@ def test_load_excel_rejects_unknown_sheet(tmp_path, simple_source_dataframe):
         load_excel(input_file, sheet_names=["Missing"])
 
 
+def test_load_excel_rejects_mismatched_sheet_columns(
+    tmp_path,
+    simple_source_dataframe,
+):
+    input_file = tmp_path / "transactions.xlsx"
+    incompatible = simple_source_dataframe.drop(columns=["UnitPrice"])
+
+    with pd.ExcelWriter(input_file, engine="openpyxl") as writer:
+        simple_source_dataframe.to_excel(
+            writer,
+            sheet_name="Valid",
+            index=False,
+        )
+        incompatible.to_excel(
+            writer,
+            sheet_name="Invalid",
+            index=False,
+        )
+
+    with pytest.raises(DataLoadError, match="Schema mismatch in sheet"):
+        load_excel(input_file)
+
+
 def test_load_file_rejects_unsupported_extension(tmp_path):
     input_file = tmp_path / "notes.txt"
     input_file.write_text("not retail data", encoding="utf-8")
