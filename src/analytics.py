@@ -324,7 +324,7 @@ def create_country_summary(
 
 def most_common_description(
     descriptions: pd.Series,
-) -> str | pd.NA:
+) -> object:
     valid_descriptions = descriptions.dropna()
 
     if valid_descriptions.empty:
