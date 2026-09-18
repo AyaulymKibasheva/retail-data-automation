@@ -3,6 +3,9 @@ import sys
 from pathlib import Path
 
 from src.batch_loader import BatchLoadError
+from src.loader import DataLoadError
+from src.cleaner import DataCleaningError
+from src.transformer import DataTransformationError
 from src.excel_exporter import ExcelReportError, run_report_pipeline, save_final_report
 
 
@@ -68,6 +71,10 @@ def main() -> int:
     try:
         validate_input_path(input_path)
         validate_output_file(output_file)
+        if input_path.is_file() and input_path.resolve() == output_file.resolve():
+            raise ValueError("Output must not overwrite the input file.")
+        if input_path.is_dir() and output_file.resolve().is_relative_to(input_path.resolve()):
+            raise ValueError("Save the output outside the input directory to avoid reloading reports.")
 
         print("=" * 60)
         print("RETAIL DATA AUTOMATION")
@@ -102,6 +109,9 @@ def main() -> int:
         FileNotFoundError,
         ValueError,
         BatchLoadError,
+        DataLoadError,
+        DataCleaningError,
+        DataTransformationError,
         ExcelReportError,
     ) as error:
         print(f"\nERROR: {error}", file=sys.stderr)

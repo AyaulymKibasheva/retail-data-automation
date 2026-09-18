@@ -6,6 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from time import perf_counter
 from uuid import uuid4
+from hashlib import sha256
 
 import pandas as pd
 import streamlit as st
@@ -389,8 +390,18 @@ def display_results() -> None:
             hide_index=True,
         )
         st.subheader("Processing summary")
+
+        processing_preview = (
+            st.session_state["processing_summary"].copy()
+        )
+        processing_preview["value"] = (
+            processing_preview["value"]
+            .astype("string")
+            .fillna("")
+        )
+
         st.dataframe(
-            st.session_state["processing_summary"],
+            processing_preview,
             width="stretch",
             hide_index=True,
         )
@@ -473,6 +484,7 @@ def main() -> None:
                 (
                     path.name,
                     path.stat().st_size,
+                    sha256(path.read_bytes()).hexdigest(),
                     tuple(selected_sheets[path.name]),
                 )
                 for path in paths

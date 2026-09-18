@@ -10,3 +10,10 @@ output/
 
 .DS_Store
 Thumbs.db
+
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+project_code.zip
+retail_review_updates.zip

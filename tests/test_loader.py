@@ -4,6 +4,23 @@ import pytest
 from src.loader import DataLoadError, load_csv, load_excel, load_file
 
 
+@pytest.mark.parametrize("extension", ["csv", "xlsx"])
+def test_loader_preserves_text_identifier_zeros(tmp_path, simple_source_dataframe, extension):
+    source = simple_source_dataframe.copy()
+    source["InvoiceNo"] = ["00123", "00456"]
+    source["StockCode"] = ["00001", "00002"]
+    source["CustomerID"] = ["00100", "00200"]
+    path = tmp_path / f"identifiers.{extension}"
+    if extension == "csv":
+        source.to_csv(path, index=False)
+    else:
+        source.to_excel(path, index=False)
+    loaded = load_file(path)
+    assert loaded["InvoiceNo"].tolist() == ["00123", "00456"]
+    assert loaded["StockCode"].tolist() == ["00001", "00002"]
+    assert loaded["CustomerID"].tolist() == ["00100", "00200"]
+
+
 def test_load_csv_adds_source_metadata(tmp_path, simple_source_dataframe):
     input_file = tmp_path / "transactions.csv"
     simple_source_dataframe.to_csv(input_file, index=False)

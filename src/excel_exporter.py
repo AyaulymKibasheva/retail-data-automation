@@ -577,7 +577,6 @@ def create_dashboard(workbook, analytics: AnalyticsResult) -> None:
     country_chart.x_axis.tickLblPos = "low"
     country_chart.y_axis.delete = False
     country_chart.y_axis.tickLblPos = "nextTo"
-    country_chart.y_axis.majorUnit = 1000
     country_chart.y_axis.numFmt = '£0,"k"'
     country_chart.dLbls = DataLabelList()
     country_chart.dLbls.showVal = True
@@ -614,7 +613,7 @@ def create_dashboard(workbook, analytics: AnalyticsResult) -> None:
 
     worksheet.merge_cells("A30:L30")
     note_cell = worksheet["A30"]
-    note_cell.value = "Development sample: results are not full-store business totals."
+    note_cell.value = "Results cover the supplied data only; sample totals are not full-store totals."
     note_cell.fill = PatternFill(fill_type="solid", fgColor="FFF2CC")
     note_cell.font = Font(color="7F6000", italic=True)
     note_cell.alignment = Alignment(horizontal="center")

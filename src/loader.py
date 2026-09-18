@@ -6,6 +6,7 @@ import pandas as pd
 
 SUPPORTED_EXTENSIONS = {".csv", ".xlsx"}
 CSV_ENCODINGS = ("utf-8-sig", "utf-8", "cp1252")
+IDENTIFIER_DTYPES = {name: "string" for name in ("InvoiceNo", "StockCode", "CustomerID")}
 
 
 class DataLoadError(Exception):
@@ -49,6 +50,7 @@ def load_csv(
                 path,
                 sep=separator,
                 encoding=current_encoding,
+                dtype=IDENTIFIER_DTYPES,
             )
 
             dataframe["_source_file"] = path.name
@@ -115,6 +117,7 @@ def load_excel(
             dataframe = pd.read_excel(
                 excel_file,
                 sheet_name=sheet_name,
+                dtype=IDENTIFIER_DTYPES,
             )
 
             current_columns = {
