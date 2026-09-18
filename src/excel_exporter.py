@@ -7,8 +7,10 @@ from uuid import uuid4
 import pandas as pd
 from openpyxl.chart import BarChart, LineChart, Reference
 from openpyxl.chart.label import DataLabelList
+from openpyxl.formatting.rule import DataBarRule, FormulaRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.table import Table, TableStyleInfo
 
 from .analytics import AnalyticsResult, create_analytics
 from .batch_loader import load_input_batch
@@ -22,6 +24,21 @@ MEDIUM_BLUE = "5B9BD5"
 LIGHT_BLUE = "D9EAF7"
 DARK_GREY = "595959"
 WHITE = "FFFFFF"
+LIGHT_RED = "FCE8E6"
+LIGHT_AMBER = "FFF2CC"
+LIGHT_GREY = "E7E6E6"
+
+TABLE_NAMES = {
+    "Cleaned Transactions": "CleanedTransactionsTable",
+    "Cancellations": "CancellationsTable",
+    "Adjustments": "AdjustmentsTable",
+    "Rejected Rows": "RejectedRowsTable",
+    "Duplicates": "DuplicatesTable",
+    "Monthly Summary": "MonthlySummaryTable",
+    "Country Summary": "CountrySummaryTable",
+    "Product Summary": "ProductSummaryTable",
+    "Validation Issues": "ValidationIssuesTable",
+}
 
 THIN_GREY_BORDER = Border(
     bottom=Side(style="thin", color="D9E1F2")
@@ -229,14 +246,174 @@ def apply_column_formats(worksheet) -> None:
                 cell.number_format = "#,##0"
 
 
-def style_tabular_sheet(worksheet) -> None:
+def get_header_column(worksheet, header_name: str) -> int | None:
+    for cell in worksheet[1]:
+        if cell.value == header_name:
+            return cell.column
+    return None
+
+
+def add_excel_table(worksheet, table_name: str) -> None:
+    if worksheet.max_row < 2 or worksheet.max_column < 1:
+        return
+
+    table = Table(
+        displayName=table_name,
+        ref=(
+            f"A1:{get_column_letter(worksheet.max_column)}"
+            f"{worksheet.max_row}"
+        ),
+    )
+    table.tableStyleInfo = TableStyleInfo(
+        name="TableStyleMedium2",
+        showFirstColumn=False,
+        showLastColumn=False,
+        showRowStripes=True,
+        showColumnStripes=False,
+    )
+    worksheet.add_table(table)
+
+
+def add_data_bar(worksheet, header_name: str) -> None:
+    column_index = get_header_column(worksheet, header_name)
+    if column_index is None or worksheet.max_row < 2:
+        return
+
+    column_letter = get_column_letter(column_index)
+    worksheet.conditional_formatting.add(
+        f"{column_letter}2:{column_letter}{worksheet.max_row}",
+        DataBarRule(
+            start_type="min",
+            end_type="max",
+            color=MEDIUM_BLUE,
+            showValue=True,
+        ),
+    )
+
+
+def add_row_highlight(
+    worksheet,
+    header_name: str,
+    formula_condition: str,
+    fill_color: str,
+    font_color: str = DARK_GREY,
+    stop_if_true: bool = False,
+) -> None:
+    column_index = get_header_column(worksheet, header_name)
+    if column_index is None or worksheet.max_row < 2:
+        return
+
+    column_letter = get_column_letter(column_index)
+    data_range = (
+        f"A2:{get_column_letter(worksheet.max_column)}"
+        f"{worksheet.max_row}"
+    )
+    formula = formula_condition.format(column=f"${column_letter}2")
+    worksheet.conditional_formatting.add(
+        data_range,
+        FormulaRule(
+            formula=[formula],
+            fill=PatternFill(fill_type="solid", fgColor=fill_color),
+            font=Font(color=font_color),
+            stopIfTrue=stop_if_true,
+        ),
+    )
+
+
+def apply_conditional_formatting(worksheet) -> None:
+    sheet_name = worksheet.title
+
+    if sheet_name in {
+        "Monthly Summary",
+        "Country Summary",
+        "Product Summary",
+    }:
+        add_data_bar(worksheet, "revenue")
+
+    if sheet_name == "Cleaned Transactions":
+        add_row_highlight(
+            worksheet,
+            "data_quality_status",
+            'ISNUMBER(SEARCH("missing_description",{column}))',
+            LIGHT_RED,
+            "9C0006",
+            stop_if_true=True,
+        )
+        add_row_highlight(
+            worksheet,
+            "data_quality_status",
+            'ISNUMBER(SEARCH("missing_customer",{column}))',
+            LIGHT_AMBER,
+            "7F6000",
+        )
+    elif sheet_name == "Cancellations":
+        add_row_highlight(
+            worksheet,
+            "record_type",
+            '{column}="cancellation"',
+            LIGHT_RED,
+            "9C0006",
+        )
+    elif sheet_name == "Adjustments":
+        add_row_highlight(
+            worksheet,
+            "adjustment_reason",
+            "NOT(ISBLANK({column}))",
+            LIGHT_AMBER,
+            "7F6000",
+        )
+    elif sheet_name == "Rejected Rows":
+        add_row_highlight(
+            worksheet,
+            "rejection_reason",
+            "NOT(ISBLANK({column}))",
+            LIGHT_RED,
+            "9C0006",
+        )
+    elif sheet_name == "Duplicates":
+        add_row_highlight(
+            worksheet,
+            "record_type",
+            '{column}="duplicate"',
+            LIGHT_GREY,
+        )
+    elif sheet_name == "Validation Issues":
+        add_row_highlight(
+            worksheet,
+            "level",
+            '{column}="error"',
+            LIGHT_RED,
+            "9C0006",
+            stop_if_true=True,
+        )
+        add_row_highlight(
+            worksheet,
+            "level",
+            '{column}="warning"',
+            LIGHT_AMBER,
+            "7F6000",
+            stop_if_true=True,
+        )
+        add_row_highlight(
+            worksheet,
+            "level",
+            '{column}="info"',
+            LIGHT_BLUE,
+            DARK_BLUE,
+        )
+
+
+def style_tabular_sheet(worksheet, table_name: str) -> None:
     worksheet.sheet_view.showGridLines = False
     worksheet.freeze_panes = "A2"
     style_header_row(worksheet)
-    if worksheet.max_row >= 1:
+    if worksheet.max_row >= 2:
+        add_excel_table(worksheet, table_name)
+    elif worksheet.max_row == 1:
         worksheet.auto_filter.ref = worksheet.dimensions
     set_column_widths(worksheet)
     apply_column_formats(worksheet)
+    apply_conditional_formatting(worksheet)
 
 
 def write_kpi_card(
@@ -456,7 +633,11 @@ def create_dashboard(workbook, analytics: AnalyticsResult) -> None:
     worksheet.sheet_view.selection[0].sqref = "A1"
 
 
-def style_processing_log(worksheet, run_summary_rows: int) -> None:
+def style_processing_log(
+    worksheet,
+    run_summary_rows: int,
+    stage_timing_rows: int,
+) -> None:
     worksheet.sheet_view.showGridLines = False
     worksheet.freeze_panes = "A3"
     worksheet.merge_cells("A1:B1")
@@ -480,6 +661,37 @@ def style_processing_log(worksheet, run_summary_rows: int) -> None:
     style_header_row(worksheet, row_number=stage_title_row + 1)
     set_column_widths(worksheet, maximum_width=70)
 
+    run_table = Table(
+        displayName="ProcessingRunTable",
+        ref=f"A2:B{run_summary_rows + 2}",
+    )
+    run_table.tableStyleInfo = TableStyleInfo(
+        name="TableStyleMedium2",
+        showFirstColumn=False,
+        showLastColumn=False,
+        showRowStripes=True,
+        showColumnStripes=False,
+    )
+    worksheet.add_table(run_table)
+
+    if stage_timing_rows:
+        timing_header_row = stage_title_row + 1
+        timing_table = Table(
+            displayName="StageTimingsTable",
+            ref=(
+                f"A{timing_header_row}:"
+                f"B{timing_header_row + stage_timing_rows}"
+            ),
+        )
+        timing_table.tableStyleInfo = TableStyleInfo(
+            name="TableStyleMedium2",
+            showFirstColumn=False,
+            showLastColumn=False,
+            showRowStripes=True,
+            showColumnStripes=False,
+        )
+        worksheet.add_table(timing_table)
+
 
 def save_final_report(report: ReportData, output_file: str | Path) -> None:
     output_path = Path(output_file)
@@ -492,15 +704,14 @@ def save_final_report(report: ReportData, output_file: str | Path) -> None:
             writer.sheets["Dashboard"] = dashboard
 
             exports = {
-                "Monthly Summary": report.analytics.monthly_summary,
-                "Country Summary": report.analytics.country_summary,
-                "Product Summary": report.analytics.product_summary,
                 "Cleaned Transactions": report.transformation.sales,
                 "Cancellations": report.transformation.cancellations,
                 "Adjustments": report.transformation.adjustments,
                 "Rejected Rows": report.transformation.rejected_rows,
                 "Duplicates": report.transformation.duplicates,
-                "Validation Issues": report.validation.to_dataframe(),
+                "Monthly Summary": report.analytics.monthly_summary,
+                "Country Summary": report.analytics.country_summary,
+                "Product Summary": report.analytics.product_summary,
             }
             for sheet_name, dataframe in exports.items():
                 dataframe.to_excel(writer, sheet_name=sheet_name, index=False)
@@ -519,11 +730,25 @@ def save_final_report(report: ReportData, output_file: str | Path) -> None:
                 index=False,
             )
 
+            report.validation.to_dataframe().to_excel(
+                writer,
+                sheet_name="Validation Issues",
+                index=False,
+            )
+
             for sheet_name in exports:
-                style_tabular_sheet(workbook[sheet_name])
+                style_tabular_sheet(
+                    workbook[sheet_name],
+                    TABLE_NAMES[sheet_name],
+                )
+            style_tabular_sheet(
+                workbook["Validation Issues"],
+                TABLE_NAMES["Validation Issues"],
+            )
             style_processing_log(
                 workbook["Processing Log"],
                 len(report.run_summary),
+                len(report.stage_timings),
             )
             create_dashboard(workbook, report.analytics)
             workbook.active = workbook.sheetnames.index("Dashboard")
@@ -540,7 +765,7 @@ def save_final_report(report: ReportData, output_file: str | Path) -> None:
 def main() -> None:
     project_root = Path(__file__).resolve().parents[1]
     input_file = project_root / "data" / "sample" / "sample_transactions.xlsx"
-    output_file = project_root / "output" / "retail_automation_sample_report.xlsx"
+    output_file = project_root / "output" / "retail_automation_report.xlsx"
 
     print("Running report pipeline...")
     report = run_report_pipeline(input_file)
