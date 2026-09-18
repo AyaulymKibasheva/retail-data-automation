@@ -11,9 +11,8 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from .analytics import AnalyticsResult, create_analytics
+from .batch_loader import load_input_batch
 from .cleaner import CleaningResult, clean_dataframe
-from .loader import load_file
-from .processing_log import calculate_file_sha256
 from .transformer import TransformationResult, transform_cleaning_result
 from .validator import ValidationReport, validate_dataframe
 
@@ -66,16 +65,12 @@ def run_report_pipeline(input_file: str | Path) -> ReportData:
     run_id = run_started_at.strftime("%Y%m%d-%H%M%S") + "-" + uuid4().hex[:8]
     stage_records: list[dict] = []
 
-    input_checksum = measure_stage(
+    input_batch = measure_stage(
         stage_records,
-        "Calculate checksum",
-        lambda: calculate_file_sha256(file_path),
+        "Discover, load and merge input files",
+        lambda: load_input_batch(file_path),
     )
-    raw_data = measure_stage(
-        stage_records,
-        "Load data",
-        lambda: load_file(file_path),
-    )
+    raw_data = input_batch.dataframe
     validation = measure_stage(
         stage_records,
         "Validate data",
@@ -119,12 +114,16 @@ def run_report_pipeline(input_file: str | Path) -> ReportData:
             {"property": "Started at", "value": run_started_at},
             {"property": "Finished at", "value": run_finished_at},
             {"property": "Duration seconds", "value": round(total_duration, 4)},
-            {"property": "Input file", "value": file_path.name},
+            {"property": "Input path", "value": file_path.name},
+            {"property": "Input files", "value": len(input_batch.files)},
             {
                 "property": "Input size MB",
-                "value": round(file_path.stat().st_size / 1024 / 1024, 2),
+                "value": input_batch.total_size_mb,
             },
-            {"property": "Input SHA256", "value": input_checksum},
+            {
+                "property": "Combined input SHA256",
+                "value": input_batch.combined_sha256,
+            },
             {"property": "Rows loaded", "value": len(raw_data)},
             {"property": "Columns loaded", "value": raw_data.shape[1]},
             {"property": "Validation errors", "value": len(validation.errors)},
